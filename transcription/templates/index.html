@@ -10,6 +10,11 @@
   <a class="card realtime-entry" href="{{ url_for('web.realtime_page') }}">
     <div class="icon" aria-hidden="true">◉</div><div><p class="eyebrow">LIVE CAPTURE</p><h2>Start real-time transcript</h2><p class="muted">Capture your meeting as it happens. Review and save when you’re ready.</p></div><span class="entry-arrow" aria-hidden="true">↗</span>
   </a>
+  <details class="start-analysis">
+    <summary class="card realtime-entry">
+      <div class="icon" aria-hidden="true">¶</div><div><p class="eyebrow">MEETING ANALYSIS</p><h2>Start Analysis</h2><p class="muted">Upload recordings or paste meeting text to uncover insights.</p></div><span class="entry-arrow analysis-toggle" aria-hidden="true">⌄</span>
+    </summary>
+    <div class="new-job grid-2">
   <form class="card" action="{{ url_for('web.voice') }}" method="post" enctype="multipart/form-data">
     <div class="icon">◉</div><h2>Analyze recordings</h2>
     <p class="muted">Upload recordings or fetch one from a URL</p>
@@ -57,9 +62,11 @@
     <textarea name="text" required placeholder="Paste the meeting transcript here…"></textarea>
     <button type="submit">Start text job</button>
   </form>
+    </div>
+  </details>
 </section>
 
-<section class="jobs-header"><div><p class="eyebrow">YOUR LIBRARY</p><h2>Recent jobs</h2></div><span id="job-count">{{ jobs|length }} total</span></section>
+<section class="jobs-header"><div><p class="eyebrow">YOUR LIBRARY</p><h2>Recent jobs</h2></div><span id="job-count">{{ total }} total</span></section>
 <div class="job-list" id="job-list">
   {% for job in jobs %}
   <a class="job-row" href="{{ url_for('web.job_detail', job_id=job.id) }}">
@@ -79,6 +86,11 @@
   </a>
   {% else %}<div class="empty">Your meeting library starts here. Record a conversation, upload a file, or paste your notes above.</div>{% endfor %}
 </div>
+<nav class="jobs-pagination" aria-label="Recent jobs pages">
+  <a id="jobs-previous" {% if page > 1 %}href="{{ url_for('web.index', page=page-1) }}"{% else %}hidden{% endif %}>← Previous</a>
+  <span id="jobs-page" aria-live="polite">Page {{ page }} of {{ pages }}</span>
+  <a id="jobs-next" {% if page < pages %}href="{{ url_for('web.index', page=page+1) }}"{% else %}hidden{% endif %}>Next →</a>
+</nav>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -149,9 +161,11 @@ recordingInput.addEventListener('change', () => {
 
 const jobList = document.getElementById('job-list');
 const jobCount = document.getElementById('job-count');
+let currentPage = {{ page }};
+const jobsIndexUrl = {{ url_for('web.index')|tojson }};
 const jobDetailUrl = {{ url_for('web.job_detail', job_id='__JOB_ID__')|tojson }};
 
-function renderJobs(jobs) {
+function renderJobs({jobs, total, page, pages}) {
   const fragment = document.createDocumentFragment();
   jobs.forEach(job => {
     const row = document.createElement('a');
@@ -212,12 +226,20 @@ function renderJobs(jobs) {
     fragment.append(empty);
   }
   jobList.replaceChildren(fragment);
-  jobCount.textContent = `${jobs.length} total`;
+  jobCount.textContent = `${total} total`;
+  currentPage = page;
+  document.getElementById('jobs-page').textContent = `Page ${page} of ${pages}`;
+  const previous = document.getElementById('jobs-previous');
+  const next = document.getElementById('jobs-next');
+  previous.hidden = page <= 1;
+  next.hidden = page >= pages;
+  previous.href = `${jobsIndexUrl}?page=${page - 1}`;
+  next.href = `${jobsIndexUrl}?page=${page + 1}`;
 }
 
 async function refreshJobs() {
   try {
-    const response = await fetch('{{ url_for("web.jobs_api") }}', {
+    const response = await fetch(`{{ url_for("web.jobs_api") }}?page=${currentPage}`, {
       headers: {Accept: 'application/json'},
       cache: 'no-store',
     });

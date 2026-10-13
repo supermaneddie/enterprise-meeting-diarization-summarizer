@@ -57,6 +57,19 @@ class JobStore:
             rows = conn.execute("SELECT * FROM jobs ORDER BY created_at DESC").fetchall()
         return [self._decode(row) for row in rows]
 
+    def page(self, page: int, per_page: int = 10) -> dict:
+        with self._connect() as conn:
+            conn.execute("BEGIN")
+            total = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+            pages = max(1, (total + per_page - 1) // per_page)
+            page = min(max(1, page), pages)
+            rows = conn.execute(
+                "SELECT * FROM jobs ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+                (per_page, (page - 1) * per_page),
+            ).fetchall()
+        return {"jobs": [self._decode(row) for row in rows], "total": total,
+                "page": page, "pages": pages}
+
     def update(self, job_id: str, **fields: Any) -> None:
         allowed = {
             "status", "started_at", "finished_at", "current_step", "error",
