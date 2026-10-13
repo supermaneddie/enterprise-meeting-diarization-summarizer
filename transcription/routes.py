@@ -98,10 +98,11 @@ def _decorate(job: dict) -> dict:
 
 @web.get("/")
 def index():
+    pagination = _jobs_page()
     return render_template(
         "index.html",
         supported_suffixes=allowed_suffixes(_settings().asr_supported_format),
-        jobs=[_decorate(job) for job in _store().list()],
+        **pagination,
         diarization_available=_settings().diarization_enabled,
         voiceprint_available=(
             _settings().diarization_enabled and _settings().voiceprint_enabled
@@ -637,7 +638,15 @@ def save_transcript(job_id: str):
 
 @web.get("/api/jobs")
 def jobs_api():
+    if "page" in request.args:
+        return jsonify(_jobs_page())
     return jsonify([_decorate(job) for job in _store().list()])
+
+
+def _jobs_page():
+    pagination = _store().page(request.args.get("page", default=1, type=int))
+    pagination["jobs"] = [_decorate(job) for job in pagination["jobs"]]
+    return pagination
 
 
 @web.get("/api/jobs/<job_id>")
