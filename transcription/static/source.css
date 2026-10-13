@@ -1,0 +1,43 @@
+.source-switch {
+  display: flex;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 18px 0 0;
+}
+
+.source-switch label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.source-switch input {
+  width: auto;
+  margin: 0;
+}
+
+.url-source {
+  margin: 20px 0;
+}
+
+.url-source label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.url-source input {
+  margin-top: 7px;
+}
+
+.url-source small {
+  display: block;
+  color: var(--muted);
+  margin-top: 6px;
+}

@@ -1,0 +1,79 @@
+# Copy to config.yml and configure your deployment. Never commit credentials.
+# Timestamp format fields: hours, minutes, seconds, milliseconds.
+timeline_pattern: "{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+# Remember-me login expiry in days.
+auto_login_expiry: 7
+
+# Exact LDAP usernames allowed to log in. An empty list denies portal access.
+authorized_users: []  # Add your authorized LDAP usernames.
+
+ldap:
+  server: ldap://ldap.example.com
+  port: 389
+  base_dn: "ou=People,dc=example,dc=com"
+  user_dn: "uid={username},{base_dn}"
+
+server:
+  host: 0.0.0.0
+  port: 8090
+  trust_proxy_proto: true  # One nginx proxy overwrites X-Forwarded-Proto with $scheme.
+  secret_key: ""  # Or TRANSCRIPTION_SECRET_KEY; blank persists a generated key in data_dir/.session-secret.
+  data_dir: data
+  max_upload_mb: 2048
+  max_extracted_mb: 4096
+  max_archive_files: 1000
+  worker_count: 2
+
+asr:
+  supported_format: "WAV,MP3,FLAC,OGG,M4A,AAC,MP4,MPEG,MPGA,WEBM"
+  url: http://localhost:8020/v1
+  model: Qwen/Qwen3-ASR-1.7B
+  api_key: ""
+  verify_ssl: false
+  prompt: >-
+    Transcribe this meeting faithfully. Preserve the spoken language, names,
+    numbers, technical terms, and sentence boundaries. Do not summarize or add
+    commentary. For Cantonese speech, render the hesitation or filler "誒" as
+    "..." (three periods) instead of writing "誒". Preserve all other spoken words.
+  concurrency: 2
+  timeout_seconds: 180
+  chunk_deadline_seconds: 30
+  max_retries: 2
+  # Skip chunks shorter than this duration (seconds); 0 disables filtering.
+  ignore_duration_seconds: 1
+  # Silence splitting when diarization is disabled: energy-based or silero-vad.
+  vad-strategy: silero-vad
+  min_chunk_seconds: 30
+  max_chunk_seconds: 60
+
+diarization:
+  enabled: true
+  model: pyannote/speaker-diarization-community-1
+  huggingface_token: ""  # Supply your Hugging Face token.
+  device: cpu  # Or cuda, cuda:0, remote-cuda:user@host.
+  ssh_identity_file: ""  # Optional path to your SSH private key.
+  ssh_port: 10022  # Set to 10022 for a remote container published with -p 10022:22
+  min_speakers: null
+  max_speakers: null
+  merge_gap_seconds: 0.75
+
+voiceprint:
+  enabled: true
+  model: speechbrain/spkrec-ecapa-voxceleb
+  match_threshold: 0.65
+  recording_languages: [English, Chinese]
+  recording_default_language: Chinese
+  recognition_strategy: centroid
+
+analysis:
+  url: http://localhost:8002/v1
+  model: nvidia/Qwen3.6-35B-A3B-NVFP4
+  api_key: ""
+  verify_ssl: false
+  prompt: >-
+    You are an expert meeting analyst. Produce concise Markdown with: Executive
+    summary, Decisions, Action items (owner and due date when stated), Key
+    discussion points, Risks/blockers, and Open questions. Never invent facts;
+    write "Not specified" for missing owners or dates. Preserve important names,
+    numbers, and dissenting views.

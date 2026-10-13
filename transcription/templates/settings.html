@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Model settings · enterprise-meeting-diarization-summarizer{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('web.index') }}">← Back to jobs</a>
+<div class="page-heading"><p class="eyebrow">CONFIGURATION</p><h1>Model settings</h1><p>Changes apply to new jobs and are saved to <code>{{ settings.config_path }}</code>.</p></div>
+<!-- no allow submit at this moment due to no auth now -->
+<form class="settings-form" method="post" onsubmit="alert ('No allow modify at this moment due to missing auth'); return false;">
+  <section class="card"><h2>Speech recognition</h2>
+    <label>Base URL<input name="asr_base_url" value="{{ settings.asr_base_url }}" required></label>
+    <label>Model<input name="asr_model" value="{{ settings.asr_model }}" required></label>
+    <label>API key<input name="asr_api_key" value="{{ settings.asr_api_key }}" placeholder="N/A"></label>
+    <label class="check"><input type="checkbox" name="asr_verify_ssl" {% if settings.asr_verify_ssl %}checked{% endif %}> Verify SSL certificates</label>
+    <label>Concurrent requests<input type="number" name="asr_concurrency" min="1" value="{{ settings.asr_concurrency }}" required></label>
+    <label>Request timeout (seconds)<input type="number" name="asr_timeout_seconds" min="1" value="{{ settings.asr_timeout_seconds }}" required></label>
+    <label>Hard deadline per chunk (seconds)<input type="number" name="asr_chunk_deadline_seconds" min="1" value="{{ settings.asr_chunk_deadline_seconds }}" required></label>
+    <label>Retries per failed chunk<input type="number" name="asr_max_retries" min="0" value="{{ settings.asr_max_retries }}" required></label>
+    <label>Transcription prompt<textarea name="asr_prompt" required>{{ settings.asr_prompt }}</textarea></label>
+  </section>
+  <section class="card"><h2>Meeting analysis</h2>
+    <label>Base URL<input name="analysis_base_url" value="{{ settings.analysis_base_url }}" required></label>
+    <label>Model<input name="analysis_model" value="{{ settings.analysis_model }}" required></label>
+    <label>API key<input name="analysis_api_key" value="{{ settings.analysis_api_key }}" placeholder="N/A"></label>
+    <label class="check"><input type="checkbox" name="analysis_verify_ssl" {% if settings.analysis_verify_ssl %}checked{% endif %}> Verify SSL certificates</label>
+    <label>Analysis prompt<textarea name="analysis_prompt" required>{{ settings.analysis_prompt }}</textarea></label>
+  </section>
+  <section class="card"><h2>Speaker diarization</h2>
+    <p class="muted">Optional local CPU/GPU or remote SSH processing. Requires <code>requirements-diarization.txt</code> and access to the selected Hugging Face model.</p>
+    <label class="check"><input type="checkbox" name="diarization_enabled" {% if settings.diarization_enabled %}checked{% endif %}> Detect and label speakers</label>
+    <label>Model<input name="diarization_model" value="{{ settings.diarization_model }}" required></label>
+    <label>Hugging Face token<input type="password" name="diarization_hf_token" value="{{ settings.diarization_hf_token }}" autocomplete="new-password" placeholder="hf_…"></label>
+    <label>Device<input name="diarization_device" value="{{ settings.diarization_device }}" title="Use cpu, cuda, cuda:0, cuda:0,2, remote-cpu:user@host, or remote-cuda:0:user@host" required></label>
+    <p class="muted">Remote targets use passwordless SSH and python3 on the remote host, with FFmpeg and diarization dependencies installed. Examples: remote-cpu:user@host, remote-cuda:user@host, remote-cuda:0:user@host. Voiceprints remain on the local CPU for remote targets.</p>
+    <label>SSH port<input type="number" name="diarization_ssh_port" value="{{ settings.diarization_ssh_port }}" min="1" max="65535" required></label>
+    <label>SSH identity file (optional)<input name="diarization_ssh_identity_file" value="{{ settings.diarization_ssh_identity_file }}" placeholder="/home/app/.ssh/id_rsa"></label>
+    <p class="muted">Private key path on the application host, passed to ssh and scp with -i. Leave blank to use your SSH defaults. Encrypted keys must be unlocked in the application's SSH agent.</p>
+    <label>Minimum speakers (optional)<input type="number" name="diarization_min_speakers" min="1" value="{{ settings.diarization_min_speakers or '' }}"></label>
+    <label>Maximum speakers (optional)<input type="number" name="diarization_max_speakers" min="1" value="{{ settings.diarization_max_speakers or '' }}"></label>
+  </section>
+  <section class="card"><h2>Voiceprint recognition</h2>
+    <p class="muted">Local ECAPA-TDNN embeddings are compared with FAISS cosine search over each person's averaged voiceprints.</p>
+    <label class="check"><input type="checkbox" name="voiceprint_enabled" {% if settings.voiceprint_enabled %}checked{% endif %}> Allow voiceprint enrollment and recognition</label>
+    <label>SpeechBrain model<input name="voiceprint_model" value="{{ settings.voiceprint_model }}" required></label>
+    <label>Automatic match threshold<input type="number" name="voiceprint_match_threshold" min="-1" max="1" step="0.01" value="{{ settings.voiceprint_match_threshold }}" required></label>
+    <p class="muted">Automatically select the best matching speaker only when the cosine score is greater than or equal to this value (default: 0.4). Lower scores remain available as suggestions without assigning a name.</p>
+  </section>
+  <button type="submit">Save to config.yml</button>
+</form>
+{% endblock %}

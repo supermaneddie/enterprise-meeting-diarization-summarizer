@@ -1,0 +1,66 @@
+.voice-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 4px 0 18px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f9fbfe;
+}
+
+.voice-option input {
+  width: auto;
+  margin: 3px 0 0;
+}
+
+.voice-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.voice-option strong {
+  font-size: 13px;
+}
+
+.voice-option small,
+.audio-version {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.voice-option.unavailable {
+  opacity: .58;
+}
+
+.voice-option.unavailable input {
+  cursor: not-allowed;
+}
+
+.file-name>div {
+  min-width: 0;
+}
+
+.file-name .audio-version {
+  margin-top: 3px;
+}
+
+.volume-setting {
+  display: block;
+  margin: -8px 0 18px;
+}
+
+.volume-setting select {
+  display: block;
+  width: 100%;
+  margin: 6px 0;
+  padding: 8px;
+}
+
+.volume-setting small {
+  color: var(--muted);
+  font-size: 11px;
+}

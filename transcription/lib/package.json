@@ -1,0 +1,20 @@
+{
+  "name": "enterprise-meeting-diarization-summarizer-browser-assets",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.13.0 || >=24.0.0"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test markdown.test.mjs"
+  },
+  "dependencies": {
+    "dompurify": "3.4.15",
+    "marked": "18.0.12"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "jsdom": "29.1.1"
+  }
+}

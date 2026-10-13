@@ -1,0 +1,8 @@
+# Local configuration contains credentials; mount it at runtime.
+config.yml
+.git
+.venv
+__pycache__
+**/__pycache__
+data
+transcription/lib/node_modules

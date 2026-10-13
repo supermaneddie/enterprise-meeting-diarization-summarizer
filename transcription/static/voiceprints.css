@@ -1,0 +1,115 @@
+.voiceprint-layout {
+    align-items: start
+}
+
+.voiceprint-person {
+    border-top: 1px solid var(--line);
+    padding: 16px 0;
+    overflow-wrap: anywhere
+}
+
+.voiceprint-person summary {
+    cursor: pointer;
+    font-weight: 700;
+    margin-bottom: 12px
+}
+
+.voiceprint-person summary span {
+    margin-left: 8px
+}
+
+.voiceprint-sample {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line)
+}
+
+#enrollment fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0
+}
+
+#enrollment label {
+    display: block;
+    margin: 16px 0
+}
+
+#enrollment input {
+    margin-top: 8px
+}
+
+#enrollment button {
+    margin: 4px 0
+}
+
+#enrollment audio {
+    width: 100%;
+    margin: 16px 0
+}
+
+#enrollment blockquote {
+    margin: 16px 0;
+    padding: 16px;
+    border-left: 3px solid var(--accent);
+    background: var(--paper);
+    line-height: 1.6
+}
+
+button:disabled {
+    opacity: .5;
+    cursor: not-allowed
+}
+
+#voiceprint-status {
+    white-space: pre-wrap
+}
+
+.topbar nav {
+    text-align: right
+}
+
+#enrollment select {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: #f9fbfe;
+    color: var(--ink);
+    font: inherit
+}
+
+.strategy-form {
+    margin-bottom: 20px
+}
+
+.strategy-option {
+    display: flex;
+    gap: 12px;
+    margin: 16px 0;
+    align-items: flex-start
+}
+
+.strategy-option input {
+    width: auto;
+    margin-top: 5px
+}
+
+.strategy-option small {
+    display: block;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-top: 5px
+}
+
+.rename-speaker {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 16px
+}
+
+.rename-speaker button {
+    justify-self: start
+}

@@ -1,0 +1,22 @@
+.speaker-card { margin-bottom: 18px; }
+.speaker-heading { display: flex; align-items: end; justify-content: space-between; }
+.speaker-heading h2 { margin: 0; }
+.speaker-heading > span { color: var(--muted); font-size: 13px; }
+.speaker-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+.speaker-form label { display: grid; grid-template-columns: 105px minmax(0, 1fr); align-items: center; gap: 10px; font-size: 13px; font-weight: 750; }
+.speaker-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.speaker-entry .add-voiceprint { padding: 10px 14px; }
+.speaker-entry .add-voiceprint:disabled { cursor: not-allowed; opacity: .45; }
+.speaker-form > button { grid-column: 1 / -1; justify-self: end; margin-top: 4px; }
+.save-status { min-height: 18px; margin: 8px 0 0; color: var(--muted); font-size: 12px; text-align: right; }
+@media (max-width: 760px) {
+  .speaker-form { grid-template-columns: 1fr; }
+  .speaker-form > button { grid-column: 1; }
+}
+
+.timeline-toggle { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; white-space: nowrap; }
+.timeline-toggle input { width: auto; margin: 0; }
+#transcript-timeline { white-space: pre-wrap; overflow-wrap: anywhere; }
+#timeline-note { font-size: 12px; margin: 12px 20px; }
+.transcript-output .panel-title, .transcript-output .panel-tools { flex-wrap: wrap; gap: 10px; }
+#transcript[hidden], #transcript-timeline[hidden], .editor-actions[hidden] { display: none; }

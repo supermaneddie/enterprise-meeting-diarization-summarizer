@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sign in · enterprise-meeting-diarization-summarizer</title>
+  {# Login styles stay inline because static assets require authentication. #}
+  <style>
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.55 system-ui, sans-serif; color: #172b4d; }
+.brand { display: flex; align-items: center; gap: 11px; color: white; text-decoration: none; font-weight: 700; }
+.brand-mark { display: grid; place-items: center; background: #386bdf; width: 40px; height: 40px; border-radius: 12px; font-size: 30px; }
+.brand-name { font-size: 16px; line-height: 1.3; }
+.brand-name small { display: block; color: #b1c3df; font-size: 10px; margin-top: 4px; }
+.eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .12em; color: #245acb; }
+.muted { color: #5c6d85; font-size: 14px; }
+input { width: 100%; padding: 12px; border: 1px solid #dce4ef; border-radius: 9px; background: #f9fbfe; font: inherit; }
+input[type=checkbox] { width: auto; accent-color: #245acb; }
+button { border: 0; border-radius: 9px; background: #245acb; color: white; font: 650 14px system-ui; cursor: pointer; }
+button:hover { background: #1949aa; }
+:focus-visible { outline: 3px solid #6798ed; outline-offset: 3px; }
+.login-page { background: #10213c; }
+.login-layout { max-width: 1100px; min-height: 100vh; margin: auto; padding: 64px 32px; display: grid; grid-template-columns: 1.15fr 1fr; align-items: center; gap: 90px; }
+.login-intro { color: #fff; }
+.login-intro .brand { margin-bottom: 90px; }
+.login-intro .eyebrow { color: #98b9ff; font-size: 10px; }
+.login-intro h1 { font-size: clamp(36px, 4.5vw, 56px); line-height: 1.12; letter-spacing: -.045em; margin: 20px 0; }
+.login-intro > p:not(.eyebrow) { color: #bdcce2; line-height: 1.8; }
+.login-features { display: flex; gap: 24px; margin-top: 40px; font-size: 11px; color: #a8bddd; }
+.login-card { background: white; padding: 40px; border-radius: 18px; box-shadow: 0 24px 80px #0003; }
+.login-card h2 { font-size: 30px; letter-spacing: -.04em; margin: 8px 0; }
+.login-card label { display: block; margin-top: 22px; font-size: 13px; font-weight: 600; }
+.login-card input { margin-top: 8px; }
+.login-card .remember-me { display: flex; align-items: center; gap: 9px; font-weight: 400; }
+.login-card .remember-me input { margin: 0; }
+.login-card button { width: 100%; margin-top: 26px; padding: 14px; }
+.login-card .error { color: #a12020; background: #fceceb; padding: 12px; border-radius: 8px; }
+@media(max-width:760px) {
+.login-layout { grid-template-columns: minmax(0, 1fr); padding: 28px 20px; gap: 28px; }
+.login-intro .brand { margin-bottom: 32px; }
+.login-intro h1 { font-size: 36px; }
+.login-features { gap: 16px; margin-top: 24px; }
+.login-card { padding: 28px; }
+}
+  </style>
+</head>
+<body class="login-page">
+  <main class="login-layout">
+    <section class="login-intro">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">≋</span><div class="brand-name">Enterprise Meetings<small>Diarization &amp; Summarization</small></div></div>
+      <p class="eyebrow">LESS NOTE-TAKING. MORE UNDERSTANDING.</p>
+      <h1>Make every<br>conversation count.</h1>
+      <p>From the first word to the next step. Turn your meetings into clear transcripts, identified speakers, and actionable summaries.</p>
+      <div class="login-features"><span>01 / Capture</span><span>02 / Understand</span><span>03 / Act</span></div>
+    </section>
+    <section class="login-card">
+    <p class="eyebrow">YOUR MEETING WORKSPACE</p>
+    <h2>Welcome back</h2>
+    <p class="muted">Sign in with your organization’s LDAP account.</p>
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ session.login_csrf }}">
+      <label>Username<input name="username" autocomplete="username" required autofocus></label>
+      <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+      <label class="remember-me"><input type="checkbox" name="remember_me"{% if request.form.get('remember_me') == 'on' %} checked{% endif %}>Remember me</label>
+      <button type="submit">Sign in</button>
+    </form>
+    </section>
+  </main>
+</body>
+</html>

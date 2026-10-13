@@ -1,0 +1,5 @@
+-r requirements.txt
+# Optional ASR dependencies; required for asr.vad-strategy: silero-vad.
+qwen3-asr-toolkit @ git+https://github.com/QwenLM/Qwen3-ASR-Toolkit.git
+silero-vad>=6.0
+onnxruntime>=1.23.2

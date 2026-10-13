@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero workspace-hero">
+  <div><p class="eyebrow">MEETING WORKSPACE</p><h1>Turn conversations into clarity.</h1>
+  <p>A clearer record of every meeting. Capture the conversation, identify speakers, and bring decisions into focus.</p></div>
+  <div class="hero-art" aria-hidden="true"><span>CAPTURE → UNDERSTAND → ACT</span><div class="soundwave"><i style="--bar:18%"></i><i style="--bar:30%"></i><i style="--bar:50%"></i><i style="--bar:25%"></i><i style="--bar:65%"></i><i style="--bar:90%"></i><i style="--bar:48%"></i><i style="--bar:72%"></i><i style="--bar:100%"></i><i style="--bar:55%"></i><i style="--bar:35%"></i><i style="--bar:80%"></i><i style="--bar:60%"></i><i style="--bar:30%"></i><i style="--bar:50%"></i><i style="--bar:85%"></i><i style="--bar:40%"></i><i style="--bar:65%"></i><i style="--bar:25%"></i><i style="--bar:15%"></i></div><small>Every voice. One shared understanding.</small></div>
+</section>
+
+<section class="new-job grid-2">
+  <a class="card realtime-entry" href="{{ url_for('web.realtime_page') }}">
+    <div class="icon" aria-hidden="true">◉</div><div><p class="eyebrow">LIVE CAPTURE</p><h2>Start real-time transcript</h2><p class="muted">Capture your meeting as it happens. Review and save when you’re ready.</p></div><span class="entry-arrow" aria-hidden="true">↗</span>
+  </a>
+  <form class="card" action="{{ url_for('web.voice') }}" method="post" enctype="multipart/form-data">
+    <div class="icon">◉</div><h2>Analyze recordings</h2>
+    <p class="muted">Upload recordings or fetch one from a URL</p>
+    <label class="job-name-field">Job name<input name="name" maxlength="200" required placeholder="e.g. Weekly product sync"></label>
+    <details class="brief-description">
+      <summary>Brief Description <span class="muted">(optional)</span></summary>
+      <textarea name="brief_description" maxlength="4000" rows="3" aria-label="Brief Description" placeholder="Add meeting participants, purpose, and key terms; this will enhance the accuracy. Example: This is a presales meeting between Client XX and ABC Company about the POC of the XXX project."></textarea>
+    </details>
+    <fieldset class="source-switch" aria-label="Recording source">
+      <label><input type="radio" name="source" value="upload" checked> Upload files</label>
+      <label><input type="radio" name="source" value="url"> Use URL</label>
+    </fieldset>
+    <div id="upload-source">
+      <label class="dropzone" for="recording-files"><input id="recording-files" type="file" name="files" multiple required accept="{{ supported_suffixes | join(',') }}">
+        <strong id="file-picker-title">Choose files</strong><span>{{ supported_suffixes | join(', ') | upper }} · multiple files supported</span></label>
+      <div class="selected-files" id="selected-files" aria-live="polite" hidden></div>
+    </div>
+    <div class="url-source" id="url-source" hidden>
+      <label>Audio URL<input id="recording-url" type="url" name="url" placeholder="https://example.com/meeting.mp3" autocomplete="url"></label>
+      <small>HTTP or HTTPS link to a file in {{ supported_suffixes | join(', ') | upper }} format</small>
+    </div>
+    <label class="voice-option"><input type="checkbox" id="adjust-volume" name="adjust_volume" value="true"><span><strong>Adjust volume</strong><small>Create an adjusted copy and use it for voice processing. Both versions remain available for playback unless removal after completion is enabled.</small></span></label>
+    <label class="volume-setting" for="volume">Volume
+      <select id="volume" name="volume" disabled>
+        <option value="auto">Auto</option>
+        {% for value in range(10, 101, 10) %}<option value="+{{ value }}%">+{{ value }}%</option>{% endfor %}
+        {% for value in range(10, 101, 10) %}<option value="-{{ value }}%">-{{ value }}%</option>{% endfor %}
+      </select>
+      <small>Auto balances speaker chunks when diarization is enabled; otherwise it normalizes the recording peak. Percentages change the original amplitude; -100% mutes the recording.</small>
+    </label>
+    <label class="voice-option{% if not diarization_available %} unavailable{% endif %}"><input id="use-diarization" type="checkbox" name="use_diarization" value="true" {% if not diarization_available %}disabled{% endif %}><span><strong>Speaker diarization</strong><small>{% if diarization_available %}Detect and label speakers for this job.{% else %}Unavailable because diarization is disabled in config.yml.{% endif %}</small></span></label>
+    <label class="voice-option voiceprint-option{% if not voiceprint_available %} unavailable{% endif %}"><input id="use-voiceprint" type="checkbox" name="use_voiceprint_recognition" value="true" disabled><span><strong>Voiceprint recognition</strong><small>{% if voiceprint_available %}Enable speaker diarization first. Matches each speaker's clearest turn against saved voiceprints.{% else %}Unavailable because voiceprints or diarization are disabled in config.yml.{% endif %}</small></span></label>
+    <label class="voice-option"><input type="checkbox" name="auto_analysis" value="true" checked><span><strong>Auto analysis</strong><small>Analyze the transcript automatically when transcription finishes. Uncheck to review the transcript first.</small></span></label>
+    <label class="voice-option"><input type="checkbox" name="remove_audio_after_completed" value="true"><span><strong>Remove audio file after completed</strong><small>Delete local original and adjusted recordings after successful completion. Keep transcripts and analysis. Uploaded recordings must be uploaded again to retry.</small></span></label>
+    <button type="submit">Start voice job</button>
+  </form>
+  <form class="card" action="{{ url_for('web.text') }}" method="post">
+    <div class="icon">¶</div><h2>Analyze meeting text</h2>
+    <p class="muted">Paste a transcript, minutes, or rough meeting notes</p>
+    <label class="job-name-field">Job name<input name="name" maxlength="200" required placeholder="e.g. Customer discovery call"></label>
+    <details class="brief-description">
+      <summary>Brief Description <span class="muted">(optional)</span></summary>
+      <textarea name="brief_description" maxlength="4000" rows="3" aria-label="Brief Description" placeholder="Add meeting participants, purpose, and key terms; this will enhance the accuracy. Example: This is a presales meeting between Client XX and ABC Company about the POC of the XXX project."></textarea>
+    </details>
+    <textarea name="text" required placeholder="Paste the meeting transcript here…"></textarea>
+    <button type="submit">Start text job</button>
+  </form>
+</section>
+
+<section class="jobs-header"><div><p class="eyebrow">YOUR LIBRARY</p><h2>Recent jobs</h2></div><span id="job-count">{{ jobs|length }} total</span></section>
+<div class="job-list" id="job-list">
+  {% for job in jobs %}
+  <a class="job-row" href="{{ url_for('web.job_detail', job_id=job.id) }}">
+    <span class="status-dot {{ job.status }}"></span>
+    <span class="job-main"><strong>{{ job.name }}</strong><small>{{ job.kind|capitalize }} · {{ job.id }}</small></span>
+    <span class="job-tags">
+      {% if job.kind == 'voice' %}
+      <span class="job-option">Audio {{ 'URL' if job.audio_source == 'url' else 'file' }}</span>
+      <span class="job-option">Volume: {{ job.volume if job.adjust_volume else 'off' }}</span>
+      {% if job.diarization_enabled %}<span class="job-option">Speaker diarization</span>{% endif %}
+      {% if job.voiceprint_recognition %}<span class="job-option">Voiceprint recognition</span>{% endif %}
+      {% endif %}
+    </span>
+    <span class="step">{{ job.current_step or job.status|capitalize }}</span>
+    <span class="time">{{ job.created_at[:19].replace('T', ' ') }} UTC<br><small>{% if job.elapsed_seconds is not none %}{{ job.elapsed_seconds }}s elapsed{% else %}Waiting{% endif %}</small></span>
+    <span class="arrow">→</span>
+  </a>
+  {% else %}<div class="empty">Your meeting library starts here. Record a conversation, upload a file, or paste your notes above.</div>{% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const adjustVolumeInput = document.getElementById('adjust-volume');
+const volumeInput = document.getElementById('volume');
+function syncVolumeOption() {
+  volumeInput.disabled = !adjustVolumeInput.checked;
+}
+adjustVolumeInput.addEventListener('change', syncVolumeOption);
+syncVolumeOption();
+
+const recordingInput = document.getElementById('recording-files');
+const selectedFiles = document.getElementById('selected-files');
+const pickerTitle = document.getElementById('file-picker-title');
+const recordingUrl = document.getElementById('recording-url');
+const uploadSource = document.getElementById('upload-source');
+const urlSource = document.getElementById('url-source');
+const diarizationInput = document.getElementById('use-diarization');
+const voiceprintInput = document.getElementById('use-voiceprint');
+const voiceprintAvailable = {{ voiceprint_available|tojson }};
+
+function syncVoiceprintOption() {
+  voiceprintInput.disabled = !voiceprintAvailable || !diarizationInput.checked;
+  if (voiceprintInput.disabled) voiceprintInput.checked = false;
+}
+diarizationInput.addEventListener('change', syncVoiceprintOption);
+syncVoiceprintOption();
+
+document.querySelectorAll('input[name="source"]').forEach(input => {
+  input.addEventListener('change', () => {
+    const useUrl = input.value === 'url' && input.checked;
+    uploadSource.hidden = useUrl;
+    urlSource.hidden = !useUrl;
+    recordingInput.required = !useUrl;
+    recordingInput.disabled = useUrl;
+    recordingUrl.required = useUrl;
+    recordingUrl.disabled = !useUrl;
+  });
+});
+recordingUrl.disabled = true;
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+recordingInput.addEventListener('change', () => {
+  const files = Array.from(recordingInput.files);
+  selectedFiles.replaceChildren();
+  selectedFiles.hidden = files.length === 0;
+  pickerTitle.textContent = files.length ? 'Change selection' : 'Choose files';
+
+  files.forEach(file => {
+    const row = document.createElement('div');
+    row.className = 'selected-file';
+    const icon = document.createElement('span');
+    icon.className = 'selected-file-icon';
+    icon.textContent = '♫';
+    const name = document.createElement('strong');
+    name.textContent = file.name;
+    const size = document.createElement('small');
+    size.textContent = formatFileSize(file.size);
+    row.append(icon, name, size);
+    selectedFiles.appendChild(row);
+  });
+});
+
+const jobList = document.getElementById('job-list');
+const jobCount = document.getElementById('job-count');
+const jobDetailUrl = {{ url_for('web.job_detail', job_id='__JOB_ID__')|tojson }};
+
+function renderJobs(jobs) {
+  const fragment = document.createDocumentFragment();
+  jobs.forEach(job => {
+    const row = document.createElement('a');
+    row.className = 'job-row';
+    row.href = jobDetailUrl.replace('__JOB_ID__', encodeURIComponent(job.id));
+
+    const status = document.createElement('span');
+    status.className = `status-dot ${job.status}`;
+
+    const main = document.createElement('span');
+    main.className = 'job-main';
+    const name = document.createElement('strong');
+    name.textContent = job.name;
+    const details = document.createElement('small');
+    details.textContent = `${job.kind.charAt(0).toUpperCase() + job.kind.slice(1)} · ${job.id}`;
+    main.append(name, details);
+
+    const tags = document.createElement('span');
+    tags.className = 'job-tags';
+    if (job.kind === 'voice') {
+      const labels = [
+        `Audio ${job.audio_source === 'url' ? 'URL' : 'file'}`,
+        `Volume: ${job.adjust_volume ? job.volume : 'off'}`,
+      ];
+      if (job.diarization_enabled) labels.push('Speaker diarization');
+      if (job.voiceprint_recognition) labels.push('Voiceprint recognition');
+      labels.forEach(label => {
+        const tag = document.createElement('span');
+        tag.className = 'job-option';
+        tag.textContent = label;
+        tags.append(tag);
+      });
+    }
+
+    const step = document.createElement('span');
+    step.className = 'step';
+    step.textContent = job.current_step || (job.status.charAt(0).toUpperCase() + job.status.slice(1));
+
+    const time = document.createElement('span');
+    time.className = 'time';
+    time.append(document.createTextNode(`${job.created_at.slice(0, 19).replace('T', ' ')} UTC`));
+    time.append(document.createElement('br'));
+    const elapsed = document.createElement('small');
+    elapsed.textContent = job.elapsed_seconds === null ? 'Waiting' : `${job.elapsed_seconds}s elapsed`;
+    time.append(elapsed);
+
+    const arrow = document.createElement('span');
+    arrow.className = 'arrow';
+    arrow.textContent = '→';
+    row.append(status, main, tags, step, time, arrow);
+    fragment.append(row);
+  });
+
+  if (!jobs.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'Your meeting library starts here. Record a conversation, upload a file, or paste your notes above.';
+    fragment.append(empty);
+  }
+  jobList.replaceChildren(fragment);
+  jobCount.textContent = `${jobs.length} total`;
+}
+
+async function refreshJobs() {
+  try {
+    const response = await fetch('{{ url_for("web.jobs_api") }}', {
+      headers: {Accept: 'application/json'},
+      cache: 'no-store',
+    });
+    if (response.ok) renderJobs(await response.json());
+  } catch (_error) {
+    // Keep the current list when the server is temporarily unavailable.
+  }
+}
+
+setInterval(refreshJobs, 10000);
+</script>
+{% endblock %}

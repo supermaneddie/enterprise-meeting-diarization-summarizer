@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Voiceprints · enterprise-meeting-diarization-summarizer{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='voiceprints.css') }}">
+<div class="page-heading"><h1>Voiceprints</h1><p>Manage the voice samples used to recognize speakers in meetings.</p></div>
+<form class="card strategy-form" action="{{ url_for('web.save_voiceprint_strategy') }}" method="post">
+  <h2>Recognition strategy</h2>
+  <p class="muted">Applies to new jobs with voiceprint recognition enabled.</p>
+  {% for value, info in strategies.items() %}
+  <label class="strategy-option"><input type="radio" name="strategy" value="{{ value }}" {% if value == recognition_strategy %}checked{% endif %}>
+    <span><strong>{{ info[0] }}{% if value == 'centroid' %} (default){% endif %}</strong><small>{{ info[1] }}</small></span>
+  </label>
+  {% endfor %}
+  <button type="submit">Save strategy</button>
+</form>
+<div class="grid-2 voiceprint-layout">
+<section class="card">
+  <h2>Saved speakers</h2>
+  <p class="muted">{{ people|length }} speakers. Expand a speaker to view or delete saved voiceprints. Stored voiceprints are embeddings; original audio is not retained here.</p>
+  {% for person in people %}
+  <details class="voiceprint-person">
+    <summary>{{ person.name }} <span class="muted">{{ person.samples|length }} voiceprint(s)</span></summary>
+    <form class="rename-speaker" action="{{ url_for('web.rename_voiceprint_speaker', person_id=person.id) }}" method="post">
+      <label>Speaker name<input name="name" value="{{ person.name }}" maxlength="100" required></label>
+      <button type="submit">Save name</button>
+      <small class="muted">Updates future recognition results. Existing meeting transcripts keep their saved names.</small>
+    </form>
+    {% if enabled %}<button type="button" class="choose-speaker" data-name="{{ person.name }}">Add voiceprint for this speaker</button>{% endif %}
+    {% for sample in person.samples %}
+    <div class="voiceprint-sample">
+      <strong>Voiceprint #{{ sample.id }}</strong>
+      <p class="muted">{{ sample.model }} · {{ sample.dimension }} dimensions<br>{{ sample.created_at[:19].replace('T', ' ') }} UTC<br>{% if sample.job_id %}Meeting {{ sample.job_id }} · {{ sample.speaker_label }}{% else %}Uploaded or recorded sample{% endif %}</p>
+      <button type="button" class="danger ghost delete-voiceprint" data-url="{{ url_for('web.delete_voiceprint', sample_id=sample.id) }}">Delete voiceprint</button>
+    </div>
+    {% endfor %}
+  </details>
+  {% else %}<p class="empty">No voiceprints saved yet. Add a sample to get started.</p>{% endfor %}
+</section>
+<section class="card">
+  <h2>Add a voiceprint</h2>
+  {% if not enabled %}<p>Enrollment is disabled. Enable voiceprints in <a href="{{ url_for('web.settings_page') }}">Model settings</a> to add samples.</p>{% endif %}
+  <form id="enrollment" action="{{ url_for('web.upload_voiceprint') }}" method="post" enctype="multipart/form-data">
+    <fieldset {% if not enabled %}disabled{% endif %}>
+      <label>Speaker name<input id="speaker-name" name="name" maxlength="100" required list="saved-speakers" autocomplete="off"></label>
+      <datalist id="saved-speakers">{% for person in people %}<option value="{{ person.name }}">{% endfor %}</datalist>
+      <p class="muted">Use 3–60 seconds of clear speech from one person, without music or other speakers. Aim for 15–30 seconds.</p>
+      <label>Upload audio<input id="voiceprint-file" name="file" type="file" accept="audio/*,.webm,.mp4,.m4a"></label>
+      <p>Or record with your microphone:</p>
+      <label>Passage language<select id="recording-language">
+        {% for language in recording_languages %}<option value="{{ language }}" {% if language == recording_default_language %}selected{% endif %}>{{ language }}</option>{% endfor %}
+      </select></label>
+      <button id="prepare-recording" type="button">Regenerate</button>
+      <div id="recording-panel">
+        <p class="muted">Read this passage naturally for 15–30 seconds. Choose a language or regenerate for a different passage.</p>
+        <blockquote id="reading-passage" aria-live="polite"></blockquote>
+        <button id="start-recording" type="button">Start microphone</button>
+        <button id="stop-recording" type="button" disabled>Stop recording</button>
+        <p id="recording-status" role="status"></p>
+      </div>
+      <audio id="preview" controls hidden></audio>
+      <button id="save-voiceprint" type="submit">Save voiceprint</button>
+    </fieldset>
+  </form>
+</section>
+</div>
+<p id="voiceprint-status" role="status" aria-live="polite"></p>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='voiceprints.js') }}" defer></script>{% endblock %}

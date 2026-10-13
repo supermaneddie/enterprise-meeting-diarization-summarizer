@@ -1,0 +1,82 @@
+.job-name-field {
+  display: block;
+  margin-top: 18px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.job-name-field input {
+  margin-top: 7px;
+}
+
+.job-title h1 {
+  overflow-wrap: anywhere;
+}
+
+.job-title {
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.job-identity {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+.job-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-metadata code {
+  overflow-wrap: anywhere;
+}
+
+.job-option {
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: #eaf1ff;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.job-row {
+  grid-template-columns: 16px minmax(0, 1fr) minmax(0, 1fr) minmax(130px, .6fr) 190px 20px;
+}
+
+.job-main {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.job-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .job-row {
+    grid-template-columns: 15px minmax(0, 1fr) 20px;
+  }
+
+  .job-row .arrow {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .job-tags {
+    grid-column: 2;
+  }
+
+  .job-tags:not(:has(.job-option)) {
+    display: none;
+  }
+}

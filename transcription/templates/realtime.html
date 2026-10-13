@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Real-time transcript · enterprise-meeting-diarization-summarizer{% endblock %}
+{% block content %}
+<section class="hero"><div><p class="eyebrow">MICROPHONE</p><h1>Real-time transcript</h1>
+<p>Audio streams through this server to Qwen3-ASR as you speak. Use HTTPS or localhost to enable microphone access.</p><p>In Chrome, to enable microphone access for an insecure host, open <b><i>chrome://flags/#unsafely-treat-insecure-origin-as-secure</i></b>, add the full origin (for example, http://your-host:8000) to the allowlist, enable the flag, and relaunch Chrome. You can upload an audio file instead.</p></div></section>
+<section class="card" id="realtime" data-stream="{{ url_for('web.realtime_stream') }}" data-save="{{ url_for('web.realtime_save') }}" data-worklet="{{ url_for('static', filename='realtime-worklet.js') }}" data-max-bytes="{{ config.MAX_CONTENT_LENGTH or 0 }}">
+  <label>Title<input id="recording-title" maxlength="200" required></label>
+  <canvas id="waveform" width="1000" height="140" aria-label="Live microphone soundwave" role="img" style="width:100%; height:140px; background:var(--paper); border-radius:12px; margin:20px 0"></canvas>
+  <p id="recording-status" role="status" aria-live="polite">Ready to record.</p>
+  <p id="recording-error" role="alert" class="muted"></p>
+  <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:20px">
+    <button id="record-start" type="button">Start</button>
+    <button id="record-pause" type="button" disabled>Pause</button>
+  </div>
+  <div class="live-preview"><strong>Recognizing…</strong><p id="recording-preview" aria-live="polite"></p></div>
+  <label>Transcript<textarea id="recording-transcript" rows="12" placeholder="Your transcript will appear here. You can edit it before saving."></textarea></label>
+  <label class="voice-option"><input id="record-final" type="checkbox" checked><span>Run final transcription after saving <small>Uses longer audio segments for context. Manual corrections are preserved for review.</small></span></label>
+  <button id="record-save" type="button" disabled>Save as new job (MP3)</button>
+  <p class="muted">Audio stays in this page until saved. Save pauses recording and waits for pending transcription. If live transcription fails, save the audio for a final pass or resume to reconnect. Audio is kept in this page until saved; closing the browser can lose it.</p>
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ url_for('static', filename='realtime.js') }}"></script>{% endblock %}

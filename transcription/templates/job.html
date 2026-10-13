@@ -1,0 +1,584 @@
+{% extends "base.html" %}
+{% block title %}{{ job.name }} · enterprise-meeting-diarization-summarizer{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('web.index') }}">← Back to jobs</a>
+<section class="job-title">
+  <div class="job-identity">
+    <p class="eyebrow">{{ job.kind|upper }} JOB</p><h1>{{ job.name }}</h1>
+    <div class="job-metadata">
+      <code>{{ job.id }}</code>
+      {% if job.kind == 'voice' %}
+      <span class="job-option">Audio {{ 'URL' if job.audio_source == 'url' else 'file' }}</span>
+      <span class="job-option">Volume: {{ job.volume if job.adjust_volume else 'off' }}</span>
+      {% if job.diarization_enabled %}<span class="job-option">Speaker diarization</span>{% endif %}
+      {% if job.voiceprint_recognition %}<span class="job-option">Voiceprint recognition</span>{% endif %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="actions" id="job-actions">
+    {% if job.status in ['queued','running','stopping'] %}<form method="post" action="{{ url_for('web.stop_job', job_id=job.id) }}"><button class="danger ghost">Stop</button></form>{% endif %}
+    <form id="retry-form" method="post" action="{{ url_for('web.retry_job', job_id=job.id) }}" onsubmit="return event.submitter?.value === 'save_settings' || confirm('{% if job.status in ['queued','running','stopping'] %}Stop this job and retry it from the beginning?{% else %}Retry this job from the beginning?{% endif %}')"><button>{% if job.status in ['queued','running','stopping'] %}Stop &amp; Retry{% else %}Retry{% endif %}</button></form>
+    {% if job.status not in ['queued','running','stopping'] %}<form method="post" action="{{ url_for('web.delete_job', job_id=job.id) }}" onsubmit="return confirm('Delete this job and its files?')"><button class="danger ghost">Delete</button></form>{% endif %}
+  </div>
+</section>
+<section class="metrics">
+  <div><small>Status</small><strong class="pill {{ job.status }}"><i></i>{{ job.status|capitalize }}</strong></div>
+  <div><small>Current step</small><strong id="step">{{ job.current_step or 'Waiting' }}</strong></div>
+  <div><small>Started</small><strong id="started">{{ job.started_at[:19].replace('T',' ') if job.started_at else 'Not yet' }}</strong></div>
+  <div><small>Elapsed</small><strong id="elapsed">{{ job.elapsed_seconds if job.elapsed_seconds is not none else 0 }}s</strong></div>
+</section>
+<div class="flash error" id="job-error" {% if not job.error %}hidden{% endif %}>{{ job.error or '' }}</div>
+<section class="card speaker-card" id="speaker-card" {% if not speakers %}hidden{% endif %}>
+  <div class="speaker-heading"><div><p class="eyebrow">DIARIZATION</p><h2>Name the speakers</h2></div><span id="speaker-count">{{ speakers|length }} detected</span></div>
+  <p class="muted">Choose a recognized candidate or enter a name. Save applies names to the transcript and analysis; Add enrolls the clearest speaker turn as another voiceprint.</p>
+  <div id="speaker-controls">
+  {% if speakers and job.status not in ['queued', 'running', 'stopping'] %}
+  <form method="post" action="{{ url_for('web.save_speaker_names', job_id=job.id) }}" class="speaker-form">
+    {% for speaker in speakers %}
+    <label class="speaker-row"><span>{{ speaker.label }}</span><div class="speaker-entry"><input name="speaker_name_{{ loop.index0 }}" maxlength="100" value="{{ speaker.name }}" placeholder="Enter or choose a name" list="speaker-candidates-{{ loop.index0 }}"><datalist id="speaker-candidates-{{ loop.index0 }}">{% for candidate in speaker.candidates|default([]) %}<option value="{{ candidate.name }}" label="{{ (candidate.score * 100)|round|int }}% match · {{ candidate.voiceprints }} voiceprint{% if candidate.voiceprints != 1 %}s{% endif %}"></option>{% endfor %}</datalist><button type="button" class="add-voiceprint" data-speaker-index="{{ loop.index0 }}" data-sample="{{ 'true' if speaker.voiceprint_sample else 'false' }}" {% if not voiceprint_enabled or not speaker.voiceprint_sample or not speaker.name %}disabled{% endif %}>Add</button></div></label>
+    {% endfor %}
+    <button type="submit">Save speaker names</button>
+  </form>
+  {% elif speakers %}<p class="muted">Name fields will become available when processing finishes.</p>{% endif %}
+  </div>
+  <p class="save-status" id="speaker-status" aria-live="polite"></p>
+</section>
+{% if job.kind == 'voice' %}
+<section class="card audio-settings-card">
+  <h2>Audio settings</h2>
+  <p class="muted">Save settings for the next retry, or save and retry to process the original recordings again. Saving without retrying is available when processing finishes.</p>
+  <input type="hidden" name="audio_settings" value="true" form="retry-form">
+  {% set adjust_volume = job.adjust_volume %}
+  {% set volume = job.volume %}
+  <label class="voice-option"><input type="checkbox" id="adjust-volume" name="adjust_volume" value="true" form="retry-form" {% if adjust_volume %}checked{% endif %}><span><strong>Adjust volume</strong><small>Create an adjusted copy and use it for voice processing.</small></span></label>
+  <label class="volume-setting" for="volume">Volume
+    <select id="volume" name="volume" form="retry-form">
+      <option value="auto" {% if volume == 'auto' %}selected{% endif %}>Auto</option>
+      {% for sign in ['+', '-'] %}{% for value in range(10, 101, 10) %}
+      {% set option = sign ~ value ~ '%' %}<option value="{{ option }}" {% if volume == option %}selected{% endif %}>{{ option }}</option>
+      {% endfor %}{% endfor %}
+    </select>
+    <small>Auto balances speaker chunks when diarization is enabled; otherwise it normalizes the recording peak. Percentages change the original amplitude; -100% mutes the recording.</small>
+  </label>
+  <label class="voice-option{% if not diarization_available %} unavailable{% endif %}"><input id="use-diarization" type="checkbox" name="use_diarization" {% if job.diarization_enabled %}checked{% endif %} value="true" form="retry-form" {% if not diarization_available %}disabled{% endif %}><span><strong>Speaker diarization</strong><small>{% if diarization_available %}Detect and label speakers for this job.{% else %}Unavailable because diarization is disabled in config.yml.{% endif %}</small></span></label>
+  <label class="voice-option voiceprint-option{% if not voiceprint_available %} unavailable{% endif %}"><input id="use-voiceprint" type="checkbox" name="use_voiceprint_recognition" value="true" form="retry-form" {% if job.voiceprint_recognition %}checked{% endif %} {% if not voiceprint_available or not job.diarization_enabled %}disabled{% endif %}><span><strong>Voiceprint recognition</strong><small>{% if voiceprint_available %}Enable speaker diarization first. Matches each speaker's clearest turn against saved voiceprints.{% else %}Unavailable because voiceprints or diarization are disabled in config.yml.{% endif %}</small></span></label>
+  <label class="voice-option"><input type="checkbox" name="remove_audio_after_completed" value="true" form="retry-form" {% if job.remove_audio_after_completed %}checked{% endif %}><span><strong>Remove audio file after completed</strong><small>Delete local original and adjusted recordings after successful completion. Keep transcripts and analysis. Uploaded recordings must be uploaded again to retry.</small></span></label>
+  <label class="voice-option"><input type="checkbox" name="auto_analysis" value="true" form="retry-form" {% if job.auto_analysis %}checked{% endif %}><span><strong>Auto analysis</strong><small>Analyze the transcript automatically when transcription finishes. Uncheck to review the transcript first.</small></span></label>
+  <div class="actions">
+    <button type="submit" id="save-audio-settings" class="ghost" form="retry-form" formaction="{{ url_for('web.save_audio_settings', job_id=job.id) }}" name="audio_action" value="save_settings" {% if job.status in ['queued','running','stopping'] %}disabled{% endif %}>Save settings</button>
+    <button type="submit" form="retry-form">Save settings and Retry</button>
+  </div>
+</section>
+{% endif %}
+<section class="card brief-description-card">
+  <h2><label for="brief-description">Brief Description</label></h2>
+  <p class="muted">Optional meeting context. Save before retrying or regenerating analysis to use your changes.</p>
+  <form id="brief-description-form" method="post" action="{{ url_for('web.save_brief_description', job_id=job.id) }}">
+    <textarea id="brief-description" name="brief_description" maxlength="4000" rows="3" placeholder="Add meeting participants, purpose, and key terms; this will enhance the accuracy. Example: This is a presales meeting between Client XX and ABC about the POC of the XXX project.">{{ job.brief_description }}</textarea>
+    <button type="submit">Save brief description</button>
+    <p id="brief-description-status" class="save-status" aria-live="polite"></p>
+  </form>
+</section>
+{% set playback_files = (['Audio URL'] + job.adjusted_files) if job.audio_url else job.files %}
+<section class="card files" id="job-files"><h2>Files <span>{{ playback_files|length }}</span></h2><div id="job-file-list">{% for file in playback_files %}<div class="file"><div class="file-name"><span>{% if job.kind == 'voice' %}♫{% else %}¶{% endif %}</span><div><code>{{ file }}</code>{% if job.kind == 'voice' %}<small class="audio-version">{% if file in job.adjusted_files %}Adjusted volume · used for processing{% else %}Original{% endif %}</small>{% endif %}</div></div>{% if job.kind == 'voice' %}<audio controls preload="metadata" src="{{ job.audio_url if job.audio_url and file == 'Audio URL' else url_for('web.job_audio', job_id=job.id, filename=file) }}">Your browser does not support audio playback.</audio>{% endif %}</div>{% endfor %}</div></section>
+<section class="output-grid">
+  <article class="card output transcript-output"><div class="panel-title"><h2>Transcript</h2><div class="panel-tools"><span id="transcript-editability">{{ 'read-only' if job.status in ['queued','running','stopping'] else 'editable' }}</span>{% if job.kind == 'voice' and job.diarization_enabled %}<label class="timeline-toggle"><input type="checkbox" id="show-speaker-identifier" aria-controls="transcript-timeline"> Show speaker identifier</label><label class="timeline-toggle"><input type="checkbox" id="show-timeline" aria-controls="transcript-timeline"> Show timeline</label>{% endif %}<button type="button" class="copy-button" data-copy-target="transcript" aria-label="Copy transcript">Copy</button></div></div><pre id="transcript-timeline" hidden></pre><p id="timeline-note" class="muted" hidden></p><textarea id="transcript" class="transcript-editor" aria-label="Meeting transcript" {% if job.status in ['queued','running','stopping'] %}readonly{% endif %}>{{ transcript }}</textarea><div class="editor-actions"><span id="transcript-status" aria-live="polite"></span><button type="button" class="ghost editor-button" id="save-transcript" {% if job.status in ['queued','running','stopping'] %}disabled{% endif %}>Save transcript</button><button type="button" class="editor-button" id="regenerate-summary" {% if job.status in ['queued','running','stopping'] %}disabled{% endif %}>Save &amp; regenerate summary</button></div></article>
+  <article class="card output analysis-output"><div class="panel-title"><h2>Analysis</h2><div class="panel-tools"><span>summary.txt</span><select id="summary-format" aria-label="Analysis display format" aria-controls="summary"><option value="markdown">Markdown</option><option value="plain">Plain text</option></select><button type="button" class="copy-button" data-copy-target="summary" aria-label="Copy analysis">Copy</button></div></div><div id="summary" class="markdown-body markdown-fallback">{{ summary or ('Auto analysis is off. Use Save & regenerate summary when ready.' if job.kind == 'voice' and not job.auto_analysis else 'Waiting for analysis…') }}</div></article>
+</section>
+{% if job.realtime %}
+<section class="card final-review">
+  <h2>Final transcription</h2>
+  <p class="muted">The final pass uses longer audio segments. Your saved live transcript and corrections remain available. Replacing the active transcript may make an existing summary outdated.</p>
+  <form method="post" action="{{ url_for('web.final_transcription', job_id=job.id) }}">
+    <button id="run-final-transcription" {% if job.status in ['queued','running','stopping'] %}disabled{% endif %}>Run / retry final transcription</button>
+  </form>
+  <details id="final-result" {% if not final_transcript %}hidden{% endif %}>
+    <summary>Review final transcript</summary>
+    <textarea id="final-transcript" rows="10" readonly aria-label="Final transcript">{{ final_transcript }}</textarea>
+    <button type="button" id="use-final-transcript" {% if job.status in ['queued','running','stopping'] %}disabled{% endif %}>Use final transcript</button>
+  </details>
+  <details><summary>Saved live transcript and corrections</summary>
+    <label>Live model transcript<textarea rows="6" readonly>{{ live_transcript }}</textarea></label>
+    <label>Saved transcript and corrections<textarea id="archived-edits" rows="6" readonly>{{ edited_transcript }}</textarea></label>
+  </details>
+</section>
+{% endif %}
+<details class="card logs" open><summary>LangGraph logs</summary><pre id="logs">{{ logs or 'Waiting for graph events…' }}</pre></details>
+{% endblock %}
+{% block scripts %}
+{% if job.kind == 'voice' %}
+<script>
+const adjustVolumeInput = document.getElementById('adjust-volume');
+const volumeInput = document.getElementById('volume');
+function syncVolumeOption() {
+  volumeInput.disabled = !adjustVolumeInput.checked;
+}
+adjustVolumeInput.addEventListener('change', syncVolumeOption);
+syncVolumeOption();
+
+const diarizationInput = document.getElementById('use-diarization');
+const voiceprintInput = document.getElementById('use-voiceprint');
+const voiceprintAvailable = {{ voiceprint_available|tojson }};
+function syncVoiceprintOption() {
+  voiceprintInput.disabled = !voiceprintAvailable || diarizationInput.disabled || !diarizationInput.checked;
+  if (voiceprintInput.disabled) voiceprintInput.checked = false;
+}
+diarizationInput.addEventListener('change', syncVoiceprintOption);
+syncVoiceprintOption();
+</script>
+{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='markdown.css') }}">
+<script src="{{ url_for('static', filename='markdown.min.js') }}"></script>
+<script>
+const summaryElement=document.getElementById('summary');
+const summaryFormat=document.getElementById('summary-format');
+let summarySource=summaryElement.textContent;
+function renderSummary(source) {
+  const format=summaryFormat.value;
+  if(source===summarySource && summaryElement.dataset.rendered===format) return;
+  delete summaryElement.dataset.rendered;
+  summarySource=source;
+  summaryElement.classList.add('markdown-fallback');
+  summaryElement.textContent=source;
+  if(format==='plain') {
+    summaryElement.dataset.rendered='plain';
+    return;
+  }
+  try {
+    if(window.TranscriptionMarkdown) {
+      TranscriptionMarkdown.render(summaryElement,source);
+      summaryElement.classList.remove('markdown-fallback');
+      summaryElement.dataset.rendered='markdown';
+    }
+  } catch (_) {
+    summaryElement.textContent=source;
+  }
+}
+summaryFormat.addEventListener('change',()=>renderSummary(summarySource));
+renderSummary(summarySource);
+</script>
+<script>
+async function copyOutput(button) {
+  const target = document.getElementById(button.dataset.copyTarget);
+  if (!target) return;
+  const timeline = document.getElementById('transcript-timeline');
+  const value = target.id === 'summary' ? summarySource : target.id === 'transcript' && !timeline.hidden ? timeline.textContent : ('value' in target ? target.value : target.textContent);
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      const helper = document.createElement('textarea');
+      helper.value = value;
+      helper.setAttribute('readonly', '');
+      helper.style.position = 'fixed';
+      helper.style.opacity = '0';
+      document.body.appendChild(helper);
+      helper.select();
+      if (!document.execCommand('copy')) throw new Error('Copy was rejected');
+      helper.remove();
+    }
+    button.textContent = 'Copied';
+    button.classList.add('copied');
+  } catch (_) {
+    button.textContent = 'Copy failed';
+  }
+  setTimeout(() => {
+    button.textContent = 'Copy';
+    button.classList.remove('copied');
+  }, 1600);
+}
+document.querySelectorAll('.copy-button').forEach(button => {
+  button.addEventListener('click', () => copyOutput(button));
+});
+</script>
+<script>
+const endpoint={{ url_for('web.job_api', job_id=job.id)|tojson }};
+const speakerAction={{ url_for('web.save_speaker_names', job_id=job.id)|tojson }};
+const voiceprintActionTemplate={{ url_for('web.add_speaker_voiceprint', job_id=job.id, speaker_index=999999)|tojson }};
+const voiceprintEnabled={{ voiceprint_enabled|tojson }};
+const transcriptAction={{ url_for('web.save_transcript', job_id=job.id)|tojson }};
+const stopAction={{ url_for('web.stop_job', job_id=job.id)|tojson }};
+const retryAction={{ url_for('web.retry_job', job_id=job.id)|tojson }};
+const deleteAction={{ url_for('web.delete_job', job_id=job.id)|tojson }};
+const audioTemplate={{ url_for('web.job_audio', job_id=job.id, filename='__filename__')|tojson }};
+const audioUrl={{ job.audio_url|tojson }};
+const jobKind={{ job.kind|tojson }};
+const activeStatuses=['queued','running','stopping'];
+const logsElement=document.querySelector('#logs');
+logsElement.scrollTop=logsElement.scrollHeight;
+const logsBottomThreshold=48;
+let logsOffset={{ logs_offset|tojson }};
+let logsHaveContent={{ (logs|length > 0)|tojson }};
+let refreshInFlight=false;
+let refreshTimer;
+function appendLogs(data) {
+  const nearBottom=logsElement.scrollHeight-logsElement.clientHeight-logsElement.scrollTop<=logsBottomThreshold;
+  if(data.logs_reset) {
+    logsElement.textContent='Waiting for graph events…';
+    logsHaveContent=false;
+  }
+  if(data.logs) {
+    if(!logsHaveContent) logsElement.replaceChildren();
+    logsElement.appendChild(document.createTextNode(data.logs));
+    logsHaveContent=true;
+    if(nearBottom) logsElement.scrollTop=logsElement.scrollHeight;
+  }
+  logsOffset=data.logs_offset;
+}
+let speakerSignature=JSON.stringify({{ speakers|tojson }})+':'+{{ job.status|tojson }};
+let fileSignature=JSON.stringify([{{ job.files|tojson }},{{ job.adjusted_files|tojson }}]);
+let renderedStatus={{ job.status|tojson }};
+const transcriptEditor=document.querySelector('#transcript');
+const saveTranscriptButton=document.querySelector('#save-transcript');
+const regenerateButton=document.querySelector('#regenerate-summary');
+const transcriptStatus=document.querySelector('#transcript-status');
+const transcriptEditability=document.querySelector('#transcript-editability');
+let transcriptDirty=false;
+let descriptionDirty=false;
+const descriptionForm=document.querySelector('#brief-description-form');
+const descriptionEditor=document.querySelector('#brief-description');
+const descriptionStatus=document.querySelector('#brief-description-status');
+descriptionEditor.addEventListener('input',()=>{
+  descriptionDirty=true;
+  descriptionStatus.textContent='Unsaved changes';
+});
+descriptionForm.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const button=descriptionForm.querySelector('button');
+  const submitted=descriptionEditor.value;
+  button.disabled=true;
+  descriptionStatus.textContent='Saving…';
+  try {
+    const response=await fetch(descriptionForm.action,{
+      method:'POST', headers:{'Accept':'application/json'}, body:new FormData(descriptionForm)
+    });
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error || 'Unable to save brief description');
+    descriptionDirty=descriptionEditor.value!==submitted;
+    if(!descriptionDirty) descriptionEditor.value=data.brief_description;
+    descriptionStatus.textContent=descriptionDirty ? 'Saved; newer changes are unsaved' : data.message;
+  } catch(error) {
+    descriptionStatus.textContent=error.message;
+  } finally {
+    button.disabled=false;
+  }
+});
+const identifierToggle=document.querySelector('#show-speaker-identifier');
+const timelineToggle=document.querySelector('#show-timeline');
+const timelineView=document.querySelector('#transcript-timeline');
+const timelineNote=document.querySelector('#timeline-note');
+let timelineText={{ timeline|tojson }};
+let transcriptIdentifiers={{ transcript_identifiers|tojson }};
+let timelineIdentifiers={{ timeline_identifiers|tojson }};
+function renderTimeline() {
+  const show=Boolean(timelineToggle && timelineToggle.checked);
+  const identifiers=Boolean(identifierToggle && identifierToggle.checked);
+  const text=show ? (identifiers ? timelineIdentifiers : timelineText) : transcriptIdentifiers;
+  const requested=show || identifiers;
+  const available=Boolean(text) && !transcriptDirty;
+  timelineView.hidden=!requested || !available;
+  transcriptEditor.hidden=requested && available;
+  transcriptEditability.textContent=transcriptEditor.hidden || transcriptEditor.readOnly ? 'read-only' : 'editable';
+  document.querySelector('.editor-actions').hidden=requested && available;
+  timelineView.textContent=text;
+  timelineNote.hidden=!requested;
+  timelineNote.textContent=available
+    ? (show ? 'Chunk start times are relative to each audio file. ' : '') + 'Hide the display options to edit the transcript.'
+    : (transcriptDirty ? 'Save or discard your edits before using transcript display options.' : (show ? 'Timeline unavailable: this job has no saved timings, or its transcript has been edited. Retry the job to generate timings.' : 'Speaker identifiers unavailable: this job has no transcript yet.'));
+}
+if(identifierToggle) identifierToggle.addEventListener('change',renderTimeline);
+if(timelineToggle) timelineToggle.addEventListener('change',renderTimeline);
+renderTimeline();
+
+transcriptEditor.addEventListener('input',()=>{
+  transcriptDirty=true;
+  transcriptStatus.textContent='Unsaved changes';
+  renderTimeline();
+});
+window.addEventListener('beforeunload',event=>{
+  if(!transcriptDirty && !descriptionDirty) return;
+  event.preventDefault();
+  event.returnValue='';
+});
+
+async function saveTranscript(action) {
+  saveTranscriptButton.disabled=true;
+  regenerateButton.disabled=true;
+  transcriptStatus.textContent=action==='regenerate' ? 'Queuing analysis…' : 'Saving…';
+  try {
+    const response=await fetch(transcriptAction,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({transcript:transcriptEditor.value,action})
+    });
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error || 'Unable to save transcript');
+    transcriptDirty=false;
+    if(action==='use_final') transcriptEditor.value=data.transcript;
+    transcriptStatus.textContent=data.message;
+    await refresh();
+    if(action!=='regenerate') {
+      saveTranscriptButton.disabled=false;
+      regenerateButton.disabled=false;
+    }
+  } catch(error) {
+    transcriptStatus.textContent=error.message;
+    saveTranscriptButton.disabled=false;
+    regenerateButton.disabled=false;
+  }
+}
+saveTranscriptButton.addEventListener('click',()=>saveTranscript('save'));
+regenerateButton.addEventListener('click',()=>saveTranscript('regenerate'));
+document.getElementById('use-final-transcript')?.addEventListener('click',()=>{
+  if(confirm('Replace the active transcript with the final transcript? Saved corrections remain archived; unsaved edits will be replaced.')) saveTranscript('use_final');
+});
+
+
+document.querySelector('#speaker-controls').addEventListener('submit',async event=>{
+  const form=event.target.closest('.speaker-form');
+  if(!form) return;
+  event.preventDefault();
+  const button=form.querySelector('button[type="submit"]');
+  const status=document.querySelector('#speaker-status');
+  button.disabled=true;
+  status.textContent='Saving…';
+  try {
+    const response=await fetch(speakerAction,{
+      method:'POST',
+      headers:{'Accept':'application/json'},
+      body:new FormData(form)
+    });
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error || 'Unable to save speaker names');
+    status.textContent=data.message;
+    if(!transcriptDirty && data.transcript!==undefined) transcriptEditor.value=data.transcript;
+    timelineText=data.timeline || '';
+    transcriptIdentifiers=data.transcript_identifiers || '';
+    timelineIdentifiers=data.timeline_identifiers || '';
+    renderTimeline();
+    if(data.summary!==undefined) renderSummary(data.summary);
+    speakerSignature=JSON.stringify(data.speakers)+':'+renderedStatus;
+  } catch(error) {
+    status.textContent=error.message;
+  } finally {
+    button.disabled=false;
+  }
+});
+
+document.querySelector('#speaker-controls').addEventListener('input',event=>{
+  const input=event.target.closest('input[name^="speaker_name_"]');
+  if(!input) return;
+  const button=input.closest('.speaker-entry').querySelector('.add-voiceprint');
+  if(button) button.disabled=!voiceprintEnabled || !input.value.trim() || button.dataset.sample==='false';
+});
+
+document.querySelector('#speaker-controls').addEventListener('click',async event=>{
+  const button=event.target.closest('.add-voiceprint');
+  if(!button) return;
+  const input=button.closest('.speaker-entry').querySelector('input');
+  const status=document.querySelector('#speaker-status');
+  const name=input.value.trim();
+  if(!name) return;
+  button.disabled=true;
+  status.textContent='Extracting and indexing voiceprint…';
+  try {
+    const action=voiceprintActionTemplate.replace('999999',button.dataset.speakerIndex);
+    const response=await fetch(action,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({name})
+    });
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error || 'Unable to add voiceprint');
+    status.textContent=data.message;
+  } catch(error) {
+    status.textContent=error.message;
+  } finally {
+    button.disabled=!voiceprintEnabled || !input.value.trim() || button.dataset.sample==='false';
+  }
+});
+
+function renderActions(status) {
+  if(status===renderedStatus) return;
+  renderedStatus=status;
+  const saveAudioSettings=document.querySelector('#save-audio-settings');
+  if(saveAudioSettings) saveAudioSettings.disabled=activeStatuses.includes(status);
+  const actions=document.querySelector('#job-actions');
+  actions.replaceChildren();
+  const addAction=(action,text,options={})=>{
+    const form=document.createElement('form');
+    form.method='post';
+    form.action=action;
+    if(action===retryAction) form.id='retry-form';
+    if(options.confirmMessage) {
+      form.addEventListener('submit',event=>{
+        if(event.submitter?.value!=='save_settings' && !confirm(options.confirmMessage)) event.preventDefault();
+      });
+    }
+    const button=document.createElement('button');
+    if(options.danger) button.className='danger ghost';
+    button.textContent=text;
+    form.appendChild(button);
+    actions.appendChild(form);
+  };
+  if(activeStatuses.includes(status)) {
+    addAction(stopAction,'Stop',{danger:true});
+    addAction(retryAction,'Stop & Retry',{
+      confirmMessage:'Stop this job and retry it from the beginning?'
+    });
+  } else {
+    addAction(retryAction,'Retry',{
+      confirmMessage:'Retry this job from the beginning?'
+    });
+    addAction(deleteAction,'Delete',{
+      danger:true,
+      confirmMessage:'Delete this job and its files?'
+    });
+  }
+}
+
+function renderSpeakers(speakers, status) {
+  const signature=JSON.stringify(speakers)+':'+status;
+  if(signature===speakerSignature) return;
+  speakerSignature=signature;
+  const card=document.querySelector('#speaker-card');
+  const controls=document.querySelector('#speaker-controls');
+  card.hidden=!speakers.length;
+  if(!speakers.length) return;
+  document.querySelector('#speaker-count').textContent=speakers.length+' detected';
+  controls.replaceChildren();
+  if(activeStatuses.includes(status)) {
+    const note=document.createElement('p');
+    note.className='muted';
+    note.textContent='Name fields will become available when processing finishes.';
+    controls.appendChild(note);
+    return;
+  }
+  const form=document.createElement('form');
+  form.method='post';
+  form.action=speakerAction;
+  form.className='speaker-form';
+  speakers.forEach((speaker,index)=>{
+    const label=document.createElement('label');
+    const caption=document.createElement('span');
+    caption.textContent=speaker.label;
+    const input=document.createElement('input');
+    input.name='speaker_name_'+index;
+    input.maxLength=100;
+    input.value=speaker.name || '';
+    input.placeholder='Enter or choose a name';
+    const listId='speaker-candidates-'+index;
+    input.setAttribute('list',listId);
+    const datalist=document.createElement('datalist');
+    datalist.id=listId;
+    (speaker.candidates || []).slice(0,5).forEach(candidate=>{
+      const option=document.createElement('option');
+      option.value=candidate.name;
+      option.label=Math.round(candidate.score*100)+'% match · '+candidate.voiceprints+' voiceprint'+(candidate.voiceprints===1?'':'s');
+      datalist.appendChild(option);
+    });
+    const entry=document.createElement('div');
+    entry.className='speaker-entry';
+    const add=document.createElement('button');
+    add.type='button';
+    add.className='add-voiceprint';
+    add.dataset.speakerIndex=index;
+    add.dataset.sample=speaker.voiceprint_sample ? 'true' : 'false';
+    add.textContent='Add';
+    add.disabled=!voiceprintEnabled || !speaker.voiceprint_sample || !input.value.trim();
+    entry.append(input,datalist,add);
+    label.className='speaker-row';
+    label.append(caption,entry);
+    form.appendChild(label);
+  });
+  const button=document.createElement('button');
+  button.type='submit';
+  button.textContent='Save speaker names';
+  form.appendChild(button);
+  controls.appendChild(form);
+}
+
+function renderFiles(files, adjustedFiles) {
+  const signature=JSON.stringify([files,adjustedFiles]);
+  if(signature===fileSignature) return;
+  fileSignature=signature;
+  if(audioUrl) files=['Audio URL',...adjustedFiles];
+  document.querySelector('#job-files h2 span').textContent=files.length;
+  const list=document.querySelector('#job-file-list');
+  list.replaceChildren();
+  files.forEach(filename=>{
+    const row=document.createElement('div');
+    row.className='file';
+    const identity=document.createElement('div');
+    identity.className='file-name';
+    const icon=document.createElement('span');
+    icon.textContent=jobKind==='voice' ? '♫' : '¶';
+    const details=document.createElement('div');
+    const code=document.createElement('code');
+    code.textContent=filename;
+    details.appendChild(code);
+    if(jobKind==='voice') {
+      const version=document.createElement('small');
+      version.className='audio-version';
+      version.textContent=adjustedFiles.includes(filename)
+        ? 'Adjusted volume · used for processing' : 'Original';
+      details.appendChild(version);
+    }
+    identity.append(icon,details);
+    row.appendChild(identity);
+    if(jobKind==='voice') {
+      const player=document.createElement('audio');
+      player.controls=true;
+      player.preload='metadata';
+      player.src=audioUrl && filename==='Audio URL' ? audioUrl : audioTemplate.replace('__filename__',encodeURIComponent(filename));
+      player.textContent='Your browser does not support audio playback.';
+      row.appendChild(player);
+    }
+    list.appendChild(row);
+  });
+}
+
+async function refresh(){
+  if(refreshInFlight) return;
+  refreshInFlight=true;
+  clearTimeout(refreshTimer);
+  try { const r=await fetch(endpoint+'?logs_offset='+logsOffset);
+    if(!r.ok) throw new Error('Unable to refresh job');
+    const d=await r.json();
+    document.querySelector('.pill').className='pill '+d.job.status;
+    document.querySelector('.pill').innerHTML='<i></i>'+d.job.status[0].toUpperCase()+d.job.status.slice(1);
+    document.querySelector('#step').textContent=d.job.current_step;
+    document.querySelector('#started').textContent=d.job.started_at ? d.job.started_at.slice(0,19).replace('T',' ') : 'Not yet';
+    document.querySelector('#elapsed').textContent=(d.job.elapsed_seconds || 0)+'s';
+    const processing=activeStatuses.includes(d.job.status);
+    const finalResult=document.getElementById('final-result');
+    if(finalResult) {
+      finalResult.hidden=!d.final_transcript;
+      document.getElementById('final-transcript').value=d.final_transcript || '';
+      document.getElementById('archived-edits').value=d.edited_transcript || '';
+      document.getElementById('run-final-transcription').disabled=processing;
+      document.getElementById('use-final-transcript').disabled=processing;
+    }
+    transcriptEditor.readOnly=processing;
+    saveTranscriptButton.disabled=processing;
+    regenerateButton.disabled=processing;
+    if(!transcriptDirty && d.transcript!==undefined) transcriptEditor.value=d.transcript;
+    timelineText=d.timeline || '';
+    transcriptIdentifiers=d.transcript_identifiers || '';
+    timelineIdentifiers=d.timeline_identifiers || '';
+    renderTimeline();
+    renderSummary(d.summary || (jobKind==='voice' && !d.job.auto_analysis ? 'Auto analysis is off. Use Save & regenerate summary when ready.' : (processing ? 'Waiting for analysis…' : '')));
+    appendLogs(d);
+    const error=document.querySelector('#job-error');
+    error.textContent=d.job.error || '';
+    error.hidden=!d.job.error;
+    renderActions(d.job.status);
+    renderSpeakers(d.speakers || [],d.job.status);
+    renderFiles(d.job.files || [],d.job.adjusted_files || []);
+    if(activeStatuses.includes(d.job.status)) refreshTimer=setTimeout(refresh,2000);
+  } catch (_) { refreshTimer=setTimeout(refresh,5000); }
+  finally { refreshInFlight=false; }
+}
+{% if job.status in ['queued','running','stopping'] %}refreshTimer=setTimeout(refresh,1500);{% endif %}
+</script>
+{% endblock %}

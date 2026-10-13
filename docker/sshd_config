@@ -1,0 +1,11 @@
+Port 22
+PermitRootLogin prohibit-password
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+UsePAM yes
+AllowUsers root
+AuthorizedKeysFile /run/sshd/root-authorized_keys
+Subsystem sftp internal-sftp

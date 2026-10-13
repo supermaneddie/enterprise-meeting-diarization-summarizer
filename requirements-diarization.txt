@@ -1,0 +1,6 @@
+-r requirements-asr.txt
+# Optional local speaker diarization and ECAPA voiceprint recognition. This
+# downloads a large PyTorch stack and configured models on first use.
+pyannote.audio>=4.0,<5
+speechbrain>=1.0,<2
+faiss-cpu>=1.8,<2

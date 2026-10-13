@@ -1,0 +1,10 @@
+.venv/
+.session-secret
+.session-secret-*
+__pycache__
+jobs.sqlite3
+data/
+transcription/lib/node_modules
+
+# Local configuration contains credentials.
+/config.yml
